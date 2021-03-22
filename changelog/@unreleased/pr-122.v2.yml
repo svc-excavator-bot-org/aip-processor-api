@@ -1,0 +1,6 @@
+type: improvement
+improvement:
+  description: |-
+    Remove incubating GeoBoundingBox and GeoBoundingPolygon messages from API.
+  links:
+  - https://github.com/palantir/aip-processor-api/pull/122

@@ -16,11 +16,15 @@
 
 apply plugin: 'java-library'
 apply plugin: 'com.google.protobuf'
-apply plugin: 'com.palantir.external-publish-jar'
+apply plugin: 'com.palantir.external-publish-dist'
+
+task distTar(type: Tar) {
+    from ('src/main/proto/')
+    include('*')
+}
 
 dependencies {
     api 'com.google.protobuf:protobuf-java'
-
     implementation 'io.grpc:grpc-protobuf'
     implementation 'io.grpc:grpc-stub'
 }

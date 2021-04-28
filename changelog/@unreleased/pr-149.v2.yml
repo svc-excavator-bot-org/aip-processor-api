@@ -1,0 +1,8 @@
+type: feature
+feature:
+  description: |-
+    Add jar publishing
+
+    The newly open sourced `aip-orchestrator` repository requires the generated source and classes from this repository. It used to publish an all-inclusive jar, but was recently updated to publish only a tarball for use with the AIP SDK. However, publishing a jar would also be helpful (and required) for the `aip-orchestrator` now.
+  links:
+  - https://github.com/palantir/aip-processor-api/pull/149

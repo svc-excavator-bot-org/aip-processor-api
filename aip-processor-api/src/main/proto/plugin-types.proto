@@ -1,0 +1,361 @@
+/*
+ * (c) Copyright 2021 Palantir Technologies Inc. All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+syntax = "proto3";
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/struct.proto";
+import "google/protobuf/empty.proto";
+
+option java_package = "com.palantir.aip.proto.types";
+option java_outer_classname = "PluginTypes";
+
+package aip.types;
+
+enum CategoryType {
+    GEOREFERENCING = 0;
+    INFERENCE = 1;
+    CALIBRATION = 2;
+}
+
+enum ImageFormat {
+  RGB888 = 0;
+  PNG = 1;
+  TIFF = 2;
+  BGR888 = 3;
+}
+
+message Category {
+    oneof value {
+        string custom = 1;
+        CategoryType type = 2;
+    }
+}
+
+/** A config object that describes schemas for configs the processor expects. */
+message ConfigObjectSchema {
+  repeated ConfigFieldDescriptor configs = 1;
+}
+
+/** Describes information about a config field */
+message ConfigFieldDescriptor {
+  string name = 1;
+
+  optional string description = 2;
+
+  ConfigDataSchema schema = 3;
+}
+
+/** Defines a schema for the config value that may be one several schema types. */
+message ConfigDataSchema {
+  oneof value {
+    ConfigEnumSchema enum = 2;
+    ConfigListSchema list = 3;
+    ConfigTextSchema text = 4;
+    ConfigDoubleSchema double = 5;
+    ConfigIntegerSchema integer = 6;
+    ConfigBooleanSchema boolean = 7;
+    ConfigObjectSchema object = 8;
+  }
+}
+
+/**
+ * A config value that may be one of the specified string variants. The default value is assumed to be the first entry
+ * in the list.
+ */
+message ConfigEnumSchema {
+  repeated string variants = 1;
+}
+
+/** A list of config fields of a specified schema type */
+message ConfigListSchema {
+  ConfigDataSchema type = 1;
+}
+
+/** A config field that may be any text value. An empty default indicates the field is required. */
+message ConfigTextSchema {
+  optional string default = 1;
+}
+
+/**
+ * A list of typed string values corresponding to a ConfigDataSchema. An empty default indicates the field is required.
+ */
+message ConfigDoubleSchema {
+  optional double default = 1;
+}
+
+/** A config field that may be any integer value. An empty default indicates the field is required. */
+message ConfigIntegerSchema {
+  optional int32 default = 1;
+}
+
+/** A config field that may be either true or false, with a provided default for the value. */
+message ConfigBooleanSchema {
+  bool default = 1;
+}
+
+/**
+ * Inference definitions.
+ */
+message Inferences {
+  repeated Inference inference = 1;
+}
+
+message Inference {
+  /**
+   * A UUID (as defined in RFC 4122) which persistently identifies a detected object across time.
+   *
+   * It must be exactly 16 bytes. If the underlying inference algorithm does not produce UUID identifiers, we
+   * recommend generating a random v4 UUID for each processing session and then using that as a namespace along with
+   * the raw identifier to create a v5 UUID for each inference.
+   */
+  bytes inference_id = 1;
+
+  /**
+   * The location of the object either within an image or the world.
+   */
+  oneof location {
+      BoundingBox box = 2;
+      BoundingPolygon polygon = 3;
+      GeoPoint geo_point = 10;
+      GeoPolygon geo_polygon = 11;
+      RowColumn point = 12;
+  }
+
+  /**
+   * Each inference may be labeled with potentially many classifications. Classifications do not necessarily need
+   * to relate, and it’s valid, for instance, to return results such as:
+   *   [ motorcycle: 0.5, person: 0.5]
+   *   [ vehicle: 0.9, car: 0.5, truck: 0.4 ]
+   */
+  repeated Classification classifications = 4;
+
+  /** Value in the range [0,1] representing how likely the inference corresponds to the same object across frames. */
+  optional double track_confidence = 5;
+
+  optional Chip chip = 7;
+
+  /**
+   * A list of the source processors responsible for this Inference, ordered from oldest to newest. The first Source
+   * represents the originator of the Inference. Processors should not explicitly set themselves as a Source, but may
+   * append one or more Sources when providing an Inference not directly observed.
+   */
+  repeated Source sources = 8;
+
+  /**
+   * A list of UUIDs (as per inference_id) of other Inferences, if this Inference is believed to represent the same
+   * object as the other Inference.
+   */
+  repeated bytes duplicate_inference_ids = 9;
+}
+
+/**
+ * A location in an image where row and col are zero-indexed pixel coordinates with an origin at the top left corner.
+ */
+message RowColumn {
+  int32 row = 1;
+  int32 col = 2;
+}
+
+/**
+ * A rectangular container defined by its pixel coordinates:
+ *   drawn from (upper_left.row, upper_left.col) to (lower_right.row, lower_right.col)
+ *   height = lower_right.row - upper_left.row
+ *   width = lower_right.col - upper_left.col
+ */
+message BoundingBox {
+  /** Upper left corner */
+  RowColumn upper_left = 1;
+
+  /** Lower right corner */
+  RowColumn lower_right = 2;
+}
+
+/**
+ * An arbitrary polygon defined by the pixel coordinates of its vertices.
+ *
+ * The vertices must follow the right-hand-rule (i.e. be listed in counterclockwise order) and the last point must be
+ * the same as the first point to "close" the polygon.
+ */
+message BoundingPolygon {
+  repeated RowColumn vertices = 1;
+}
+
+/**
+ * A location in geo-space.
+ *
+ * Latitude and longitude are in degrees, and elevation is in meters above the WGS-84 ellipsoid.
+ */
+message GeoPoint {
+  double latitude = 1;
+  double longitude = 2;
+  double elevation = 3;
+}
+
+/**
+ * An arbitrary polygon defined by the latitude/longitude coordinates of its vertices.
+ *
+ * The vertices must follow the right-hand-rule (i.e. be listed in counterclockwise order) and the last point must be
+ * the same as the first point to "close" the polygon.
+ */
+message GeoPolygon {
+  repeated GeoPoint vertices = 1;
+}
+
+message Classification {
+  /** A pre-agreed identifier that the orchestration system is agnostic to. */
+  string type = 1;
+
+  /** Value in the range [0,1] representing how likely the referenced object is the given type. */
+  double confidence = 2;
+
+  /** Extra information about the object specific to this classification type. */
+  optional string type_specific_data = 3;
+}
+
+message Chip {
+  /** The type of image in the chip. One of "png" or "jpg". */
+  string image_type = 1;
+
+  /** The encoded chip image data. */
+  bytes image_data = 2;
+}
+
+message Source {
+  /**
+   * Opaque identifier for the "set" of data that originated the Inference. This identifier must have been provided in
+   * a StartupRequest.
+   */
+  string context_id = 1;
+
+  /** Name of the algorithm that originated the Inference. */
+  string algorithm_name = 2;
+
+  /** Version of the algorithm that originated the inference. */
+  string algorithm_version = 3;
+}
+
+message LatLong {
+  /** Degrees. Latitude. */
+  double latitude = 1;
+
+  /** Degrees. Longitude. */
+  double longitude = 2;
+}
+
+/** A subset of the tags from 1601.1, with tag number == protobuf field number. */
+message GeoRegistration {
+  repeated RowColumn row_column_points = 4;
+  repeated LatLong lat_long_points = 5;
+  repeated double elevation_points = 8;
+
+  /**
+   * An AIP specific extension indicating the confidence level of a geo registration algorithm.
+   *
+   * Geo rectification algorithms that do not perform any analysis of the image should leave this unset.
+   */
+  optional double confidence = 200;
+}
+
+/** Subset of the tags from 0601.17, with tag number == protobuf field number. */
+message UasMetadata {
+  /** MISB timestamp of the KLV in unix time. */
+  uint64 unix_timestamp = 2;
+
+  /** Degrees within range [0, 360]. Aircraft heading angle. Relative between longitudinal axis and True North measured in the horizontal plane. */
+  optional float platform_heading_angle = 5;
+
+  /** Degrees within range [-20, 20]. Aircraft pitch angle. Angle between longitudinal axis and horzontal plane. Positive angles above horizontal plane. */
+  optional float platform_pitch_angle = 6;
+
+  /** Degrees within range [-50, 50]. Platform roll angle. Angle between transverse axis and horizontal plane. Positive angles for right wing lowered below horizontal plane. */
+  optional float platform_roll_angle = 7;
+
+  /** Degrees within range [-90, 90]. Sensor Latitude. Based on WGS84 ellipsoid. */
+  optional double sensor_latitude = 13;
+
+  /** Degrees within range [-180, 180]. Sensor Longitude. Based on WGS84 ellipsoid. */
+  optional double sensor_longitude = 14;
+
+  /** Meters within range [-900, 19000]. Altitude of sensor as measured from Mean Sea Level (MSL). */
+  optional double sensor_true_altitude = 15;
+
+  /** Degrees within range [0, 180]. Horizontal field of view of selected imaging sensor. */
+  optional float sensor_horizontal_fov = 16;
+
+  /** Degrees within range [0, 180]. Vertical field of view of selected imaging sensor. */
+  optional float sensor_vertical_fov = 17;
+
+  /** Degrees within range [0, 360]. Relative rotation angle of sensor to platform longitudinal axis. Rotation angle between platform longitudinal axis and camera pointing direction as seen from above the platform. */
+  optional double sensor_relative_azimuth_angle = 18;
+
+  /** Degrees within range [-180, 180]. Relative Elevation Angle of sensor to platform longitudinal-transverse plane. Negative angles down. */
+  optional double sensor_relative_elevation_angle = 19;
+
+  /** Degrees within range [0, 360]. Relative roll angle of sensor to aircraft platform. Twisting angle of camera about lens axis. Top of image is zero degrees. Positive angles are clockwise when looking from behind camera. */
+  optional double sensor_relative_roll_angle = 20;
+
+  /** Image sensor provided name/description. */
+  optional string image_source_sensor = 21;
+
+  /** Degrees within range [-90, 90]. Latitude at center of the image frame as reported by the imaging sensor. Based on WGS84 ellipsoid. */
+  optional double frame_center_latitude = 23;
+
+  /** Degrees within range [-180, 180]. Longitude at center of the image frame as reported by the imaging sensor. Based on WGS84 ellipsoid. */
+  optional double frame_center_longitude = 24;
+
+  /** Meters within range [-900, 19000]. Elevation of terrain at center of image frame as reported by the imaging center. */
+  optional double frame_center_elevation_meters = 25;
+
+  optional GeoRegistration geo_registration = 98;
+
+  optional UasMetadata amend_local_set = 101;
+}
+
+message Image {
+  /** Width of the image in pixels. */
+  int32 width = 1;
+
+  /** Height of the image in pixels. */
+  int32 height = 2;
+
+  /** The image source. */
+  oneof source {
+    /**
+     * The path to the image on the local filesystem.
+     *
+     * Processors must not modify or delete this file.
+     */
+    string path = 3;
+
+    /** The raw image bytes. */
+    bytes data = 4;
+  }
+}
+
+message Tracing {
+  /** The ID of the trace. Either 8 or 16 bytes. */
+  bytes trace_id = 1;
+
+  /** The ID of the span covering the request to the processor. 8 bytes. */
+  bytes span_id = 2;
+
+  /** The ID of the parent of `span_id`, if one exists. 8 bytes. */
+  optional bytes parent_span_id = 3;
+
+  /** The sampling state of the trace, if the orchestrator has chosen one. */
+  optional bool sampled = 4;
+}

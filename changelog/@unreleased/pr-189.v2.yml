@@ -1,0 +1,8 @@
+type: feature
+feature:
+  description: |-
+    V3 API for AIP Processors
+
+    Adding in AIP's V3 Processor API.
+  links:
+  - https://github.com/palantir/aip-processor-api/pull/189

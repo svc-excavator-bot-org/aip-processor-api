@@ -1,5 +1,5 @@
 /*
- * (c) Copyright 2019 Palantir Technologies Inc. All rights reserved.
+ * (c) Copyright 2021 Palantir Technologies Inc. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 syntax = "proto3";
 
 import "processing-service-v2.proto";
+import "processing-service-v3.proto";
 
 option java_package = "com.palantir.aip.proto.configuration";
 option java_outer_classname = "ConfigProtos";
@@ -56,8 +57,12 @@ message ConfigurationResponse {
 }
 
 message ProtocolVersion {
+    reserved 1;
+
     oneof config {
         /* Implements ProcessingService from ./processing-service-v2.proto. */
-        aip.processor.v2.ProcessorV2Config v2 = 2;
+        aip.processor.v2.ProcessorV2Config processor_v2 = 2;
+        /* Implements ProcessingService from ./processing-service-v3.proto. */
+        aip.processor.v3.ProcessorV3Config processor_v3 = 3;
     }
 }

@@ -32,17 +32,26 @@ dependencies {
 
 protobuf {
     protoc {
-        artifact = 'com.google.protobuf:protoc:3.10.0'
+        artifact = 'com.google.protobuf:protoc:3.15.5'
     }
     plugins {
         grpc {
-            artifact = 'io.grpc:protoc-gen-grpc-java:1.24.0'
+            artifact = 'io.grpc:protoc-gen-grpc-java:1.36.0'
         }
     }
     generateProtoTasks {
         all()*.plugins { grpc {} }
-    }
 
+        all().each { generateProtoTask ->
+            // The generateProto task does not seem to properly clean its previously generated outputs.
+            // See https://github.com/google/protobuf-gradle-plugin/issues/332
+            // See https://github.com/google/protobuf-gradle-plugin/issues/331
+            generateProtoTask.doFirst {
+                delete generateProtoTask.outputs
+            }
+        }
+
+    }
     generatedFilesBaseDir = "${projectDir}/generated_src"
 }
 

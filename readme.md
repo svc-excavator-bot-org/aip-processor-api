@@ -9,8 +9,7 @@ based API definition that processors implement to receive and reply with enrichm
 Compatible processors implement two gRPC services:
 1. [configuration service](/aip-processor-api/src/main/proto/configuration-service.proto): 
    processors identify the kind and version of enrichment they perform
-2. processor service ([v1](/aip-processor-api/src/main/proto/processing-service-v1.proto) and 
-   [v2](/aip-processor-api/src/main/proto/processing-service-v2.proto)): versioned processor 
+2. processor service ([v2](/aip-processor-api/src/main/proto/processing-service-v2.proto) and [v3](/aip-processor-api/src/main/proto/processing-service-v3.proto)): versioned processor 
    implementations for receiving media frames and metadata and returning enrichments, such 
    as AI inferences, georegistration, or computing tracks from prior inferences
 

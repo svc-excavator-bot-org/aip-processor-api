@@ -1,0 +1,310 @@
+/*
+ * (c) Copyright 2021 Palantir Technologies Inc. All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+syntax = "proto3";
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/struct.proto";
+import "google/protobuf/empty.proto";
+
+import "plugin-types.proto";
+
+option java_package = "com.palantir.aip.proto.processor.v3";
+option java_outer_classname = "ProcessorV3Protos";
+
+package aip.processor.v3;
+
+message ProcessorV3Config {
+    /**
+     * Configuration for the processor's supported request types.
+     */
+    repeated Capability capabilities = 2;
+
+    /** An optional config schema. If absent, the processor does not expect or handle live configuration. */
+    optional aip.types.ConfigObjectSchema config_schema = 3;
+
+    /** Category for this processor that defines its function. */
+    optional aip.types.Category category = 4;
+
+    /**
+     * Categories of plugins that this plugin depends on. These are required dependencies meaning that if a dependency
+     * is not met, the plugin will fail to respond to requests.
+     */
+    repeated aip.types.Category inputs = 5;
+
+    /** A freetext description of the plugin, displayed in the config UI. */
+    optional string description = 6;
+}
+
+message Capability {
+    oneof kind {
+        VideoCapability video = 1;
+        ImageryCapability imagery = 2;
+        InferencesCapability inferences = 3;
+    }
+}
+
+message VideoCapability {
+    /**
+     * The processor's desired image format.
+     *
+     * If unset, the orchestrator will not provide image data to the processor.
+     */
+    optional aip.types.ImageFormat image_format = 1;
+
+    /** A suggested default for the amount of time this processor will need to process a single frame. */
+    optional int32 budgetMillis = 2;
+
+    /** A suggested default for the frame interval at which payloads are sent to this processor. */
+    optional int32 sampleRate = 3;
+}
+
+message ImageryCapability {
+    /** The style of input desired by the processor. */
+    oneof format {
+        /** The orchestrator decodes the raw image and send multiple tiles to the processor. */
+        TiledImageryCapability tiled = 1;
+    }
+}
+
+message TiledImageryCapability {
+    /** The processor's desired image format. */
+    aip.types.ImageFormat image_format = 1;
+    /** Tile width should be positive and greater than minOverlap. */
+    int32 width = 2;
+    /** Tile height should be positive and greater than minOverlap. */
+    int32 height = 3;
+    /** minOverlap should be positive */
+    int32 min_overlap = 4;
+}
+
+message InferencesCapability {}
+
+service ProcessingService {
+    /**
+     * Creates a processing session for a sequence of requests.
+     *
+     * The orchestrator will use a separate session for each unique "set" of data (e.g. each video or collection of
+     * images). Requests may be pipelined; i.e. the time allowed to process a request may be larger than the time
+     * interval between requests. Responses may be sent in any order.
+     *
+     * The first request for each session will always have a `startup` payload, and no other requests will be sent until
+     * a response to the startup request is received.
+     */
+    rpc process(stream ProcessRequest) returns (stream ProcessResponse) {
+    }
+}
+
+message ProcessRequest {
+    /**
+     * An identifier to match requests to responses.
+     *
+     * The `request_id` field of the corresponding `ProcessResponse` message should be set to this value. For a given
+     * `ProcessingService.process` session, the value is guaranteed to start at 0 and increment by 1 for each
+     * subsequent request.
+     */
+    uint64 request_id = 1;
+
+    oneof payload {
+        /** The first request sent for each session. */
+        StartupRequest startup = 2;
+
+        /** A single frame of an MPEG-TS video stream. */
+        VideoRequest video = 3;
+
+        /** An image. */
+        ImageryRequest imagery = 5;
+
+        /** A set of standalone inferences. */
+        InferencesRequest inferences = 6;
+    }
+
+    /**
+     * Optional Zipkin tracing metadata propagated from the orchestrator to a processor.
+     *
+     * This can be used to tie spans recorded in a processor to the request that originated them on the orchestrator.
+     */
+    optional aip.types.Tracing tracing = 4;
+}
+
+message ProcessResponse {
+    /** The ID of the request corresponding to this response. */
+    uint64 request_id = 1;
+
+    oneof payload {
+        /**
+         * An error occurred processing the request.
+         *
+         * This can be sent in response to any kind of request.
+         */
+        ErrorResponse error = 2;
+
+        /** A response to a startup request. */
+        StartupResponse startup = 3;
+
+        /** A response to a video request. */
+        VideoResponse video = 4;
+
+        /** A response to an imagery request. */
+        ImageryResponse imagery = 5;
+
+        /** A response to an inferences request. */
+        InferencesResponse inferences = 6;
+    }
+}
+
+message ErrorResponse {
+    string message = 1;
+}
+
+message StartupRequest {
+    /**
+     * Custom per-session configuration for the processor.
+     *
+     * The contents and structure of the configuration are up to the processor to define.
+     */
+    google.protobuf.Struct config = 1;
+
+    /**
+     * Opaque identifier for this "set" of data. This value applies to all data received during this session. This
+     * value may be compared to the context_id present in a Source message to determine if an Inference originated from
+     * a processor observing this set of data or another, and should be set in a Source message by any processor which
+     * provides inferences from different data sets.
+     */
+    string context_id = 2;
+}
+
+message StartupResponse {}
+
+message VideoRequest {
+    /** The presentation timestamp of the frame. */
+    uint64 pts = 1;
+
+    /** The MISP timestamp of the frame embedded in the video stream, if present. */
+    optional uint64 misp_timestamp = 2;
+
+    /** The image data of the frame, if requested via `VideoCapability.image_format`. */
+    optional aip.types.Image image = 3;
+
+    /** MISB 0601 metadata corresponding to the frame, if present. */
+    optional aip.types.UasMetadata uas = 4;
+
+    /** Inferences already associated with the frame, if any. */
+    optional aip.types.Inferences inferences = 5;
+
+    /**
+     * All 0601 packets received since the previous video frame.
+     *
+     * Unlike the `uas` field, these have not been time-aligned to the frame or modified by the orchestrator in any way.
+     */
+    repeated RawUasMetadata buffered_raw_uas = 6;
+
+    /**
+     * A duration indicating how long AIP will wait on a processor response for this request. Deadlines may vary as
+     * AIP spends a non-constant time preparing each request.
+     */
+    google.protobuf.Duration deadline = 7;
+
+    /** The width of the video frame. */
+    uint32 width = 8;
+
+    /** The height of the video frame. */
+    uint32 height = 9;
+}
+
+message VideoResponse {
+    oneof payload {
+        /** For processors that only read from the video stream, and do not contribute any metadata. */
+        google.protobuf.Empty empty = 1;
+
+        /** A set of inferences to be added to the existing set associated with the frame. */
+        aip.types.Inferences append_inferences = 2 [deprecated = true];
+
+        /** A set of inferences that will completely replace the existing inferences associated with the frame. */
+        aip.types.Inferences replace_inferences = 3 [deprecated = true];
+
+        /** Updated metadata to be attached as an amend local set on the existing 0601. */
+        aip.types.UasMetadata amend_metadata = 4;
+
+        /** Updated metadata which will completely replace the existing 0601. */
+        aip.types.UasMetadata replace_metadata = 5;
+
+        /** A set of modifications to the inferences associated with the frame. */
+        ModifyInferences modify_inferences = 6;
+    }
+}
+
+message ImageryRequest {
+    /* The image data, in the format requested via `ImageryCapability.format`. */
+    oneof image {
+        TiledImage tiled = 1;
+    }
+
+    /* Inferences from previous processors in the pipeline. */
+    optional aip.types.Inferences inferences = 2;
+}
+
+message TiledImage {
+    aip.types.Image image = 1;
+}
+
+message ImageryResponse {
+    oneof payload {
+        /** For processors that only read from the image, and do not contribute any metadata. */
+        google.protobuf.Empty empty = 1;
+
+        /** A set of inferences to be added to the existing set associated with the image. */
+        aip.types.Inferences append_inferences = 2;
+
+        /** A set of inferences that will completely replace the existing inferences associated with the image. */
+        aip.types.Inferences replace_inferences = 3;
+    }
+}
+
+message InferencesRequest {
+    aip.types.Inferences inferences = 1;
+}
+
+message InferencesResponse {
+    oneof payload {
+        /** Do nothing. */
+        google.protobuf.Empty empty = 1;
+
+        /** A set of modifications to the inferences. */
+        ModifyInferences modify_inferences = 2;
+    }
+}
+
+message ModifyInferences {
+  /**
+   * A set of inference_ids (as defined in the Inference message) of Inferences to be removed from the existing set
+   * associated with the frame. Each inference_id must be present in an Inference in the inferences of the request.
+   * All removals are processed before any additions.
+   */
+  repeated bytes remove_inferences = 1;
+
+  /**
+   * A set of inferences to be added to the existing set associated with the frame. Additions are processed after all
+   * removals, and newly added inferences may have an inference_id that was present in the removals.
+   */
+  repeated aip.types.Inference add_inferences = 2;
+}
+
+/** UasMetadata along with the PTS value of the PES packet it was packaged in, if present. */
+message RawUasMetadata {
+    aip.types.UasMetadata uas = 1;
+    optional uint64 pts = 2;
+}

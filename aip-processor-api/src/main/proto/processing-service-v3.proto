@@ -77,6 +77,8 @@ message ImageryCapability {
     oneof format {
         /** The orchestrator decodes the raw image and send multiple tiles to the processor. */
         TiledImageryCapability tiled = 1;
+        /** The orchestrator provides the raw input file directly to the processor. */
+        RawImageryCapability raw = 2;
     }
 }
 
@@ -90,6 +92,8 @@ message TiledImageryCapability {
     /** minOverlap should be positive */
     int32 min_overlap = 4;
 }
+
+message RawImageryCapability {}
 
 message InferencesCapability {}
 
@@ -251,6 +255,7 @@ message ImageryRequest {
     /* The image data, in the format requested via `ImageryCapability.format`. */
     oneof image {
         TiledImage tiled = 1;
+        RawImage raw = 3;
     }
 
     /* Inferences from previous processors in the pipeline. */
@@ -259,6 +264,15 @@ message ImageryRequest {
 
 message TiledImage {
     aip.types.Image image = 1;
+}
+
+message RawImage {
+    /**
+     * The path to the image on the local filesystem.
+     *
+     * Processors must not modify or delete this file.
+     */
+    string path = 1;
 }
 
 message ImageryResponse {

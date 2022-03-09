@@ -1,0 +1,5 @@
+type: feature
+feature:
+  description: Added support for processors that work with raw imagery files.
+  links:
+  - https://github.com/palantir/aip-processor-api/pull/199

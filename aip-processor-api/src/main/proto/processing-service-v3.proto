@@ -273,6 +273,12 @@ message RawImage {
      * Processors must not modify or delete this file.
      */
     string path = 1;
+    
+    /** Width of the image in pixels. */
+    int32 width = 2;
+
+    /** Height of the image in pixels. */
+    int32 height = 3;
 }
 
 message ImageryResponse {

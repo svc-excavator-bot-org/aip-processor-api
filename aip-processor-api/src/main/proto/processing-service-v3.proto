@@ -255,7 +255,7 @@ message ImageryRequest {
     /* The image data, in the format requested via `ImageryCapability.format`. */
     oneof image {
         TiledImage tiled = 1;
-        RawImage raw = 3;
+        aip.types.RawImage raw = 3;
     }
 
     /* Inferences from previous processors in the pipeline. */
@@ -264,21 +264,6 @@ message ImageryRequest {
 
 message TiledImage {
     aip.types.Image image = 1;
-}
-
-message RawImage {
-    /**
-     * The path to the image on the local filesystem.
-     *
-     * Processors must not modify or delete this file.
-     */
-    string path = 1;
-    
-    /** Width of the image in pixels. */
-    int32 width = 2;
-
-    /** Height of the image in pixels. */
-    int32 height = 3;
 }
 
 message ImageryResponse {

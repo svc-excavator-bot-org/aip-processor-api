@@ -359,3 +359,18 @@ message Tracing {
   /** The sampling state of the trace, if the orchestrator has chosen one. */
   optional bool sampled = 4;
 }
+
+message RawImage {
+  /**
+   * The path to the image on the local filesystem.
+   *
+   * Processors must not modify or delete this file.
+   */
+  string path = 1;
+
+  /** Width of the image in pixels. */
+  int32 width = 2;
+
+  /** Height of the image in pixels. */
+  int32 height = 3;
+}

@@ -1,0 +1,8 @@
+type: improvement
+improvement:
+  description: |-
+    Removed width and height from RawImage.
+
+    Removed for consistency. A raw image can be routed even if we cannot interpret the image dimensions.
+  links:
+  - https://github.com/palantir/aip-processor-api/pull/203

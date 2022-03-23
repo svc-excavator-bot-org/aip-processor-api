@@ -363,9 +363,23 @@ message Tracing {
 message RawImage {
   reserved 2, 3;
   /**
-   * The path to the image on the local filesystem.
-   *
-   * Processors must not modify or delete this file.
-   */
+ * The path to the image on the local filesystem.
+ *
+ * Processors must not modify or delete this file.
+ */
   string path = 1;
+
+  // A UUID id for a specific image within a request.
+  bytes image_id = 4;
+
+  repeated RawImageMetadata image_metadata = 5;
+}
+
+message RawImageMetadata {
+  bytes metadata_id = 1;
+
+  /**
+   * The path to the metadata on the local filesystem.
+   */
+  string path = 2;
 }
